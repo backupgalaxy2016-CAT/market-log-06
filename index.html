@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>주간 시황 추세 관찰 일지</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f1218;          /* 차트룸 잉크 */
+  --panel:#161b24;
+  --panel-2:#1c2330;
+  --line:#28303e;
+  --text:#e8ebf0;
+  --dim:#8b94a3;
+  --faint:#5b6472;
+  --up:#f04452;          /* 한국 시장 관례: 상승=적 */
+  --down:#3182f6;        /* 하락=청 */
+  --hold:#f5b14c;        /* 변곡점/주의 = 호박색 */
+  --keep:#31c48d;        /* 추세 유지/복원 = 녹 */
+  --mono:'IBM Plex Mono',monospace;
+  --sans:'IBM Plex Sans KR',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;color:var(--text)}
+:focus-visible{outline:2px solid var(--hold);outline-offset:2px}
+
+/* ── 상단 ─────────────────────────── */
+header{border-bottom:1px solid var(--line);padding:20px 24px 16px;position:sticky;top:0;background:rgba(15,18,24,.94);backdrop-filter:blur(8px);z-index:50}
+.head-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;max-width:1080px;margin:0 auto}
+h1{font-size:17px;font-weight:700;letter-spacing:-.02em}
+h1 small{display:block;font-size:11px;font-weight:400;color:var(--dim);letter-spacing:.04em;margin-top:2px}
+.date-nav{display:flex;align-items:center;gap:6px}
+.date-nav button{background:var(--panel);border:1px solid var(--line);color:var(--text);width:32px;height:32px;border-radius:6px;font-size:14px}
+.date-nav button:hover{background:var(--panel-2)}
+.date-nav input[type=date]{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-family:var(--mono);font-size:13px;color:var(--text);color-scheme:dark}
+.io-btns{display:flex;gap:6px;flex-wrap:wrap}
+.io-btns button,.io-btns label{background:var(--panel);border:1px solid var(--line);color:var(--dim);padding:6px 12px;border-radius:6px;font-size:12px;display:inline-flex;align-items:center;gap:6px}
+.io-btns button:hover,.io-btns label:hover{color:var(--text);background:var(--panel-2)}
+.io-btns label{cursor:pointer}
+.io-btns input[type=file]{display:none}
+.io-btns button.mode-on{color:var(--bg);background:var(--hold);border-color:var(--hold);font-weight:600}
+
+/* ── 요약 모드 ────────────────────── */
+.sum-group{margin-top:32px}
+.sum-head{display:flex;align-items:baseline;gap:10px;border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:10px}
+.sum-head .seq{font-family:var(--mono);font-size:11px;color:var(--faint)}
+.sum-head h2{font-size:14px;font-weight:600}
+.sum-row{display:grid;grid-template-columns:96px minmax(150px,210px) 1fr;gap:14px;align-items:start;padding:10px 4px;border-bottom:1px dashed var(--line)}
+.sum-row:last-child{border-bottom:none}
+.sum-row.dimmed{opacity:.38}
+@media(max-width:640px){.sum-row{grid-template-columns:76px 1fr}.sum-row .sum-memo{grid-column:1/-1;padding-left:0}}
+.sum-thumb{width:96px;height:60px;border-radius:6px;border:1px solid var(--line);background:var(--panel);overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:10px;cursor:zoom-in;padding:0}
+@media(max-width:640px){.sum-thumb{width:76px;height:48px}}
+.sum-thumb img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+.sum-thumb:hover{border-color:var(--hold)}
+.sum-thumb.empty{cursor:default}
+.sum-id .nm{font-weight:600;font-size:13px;line-height:1.35}
+.sum-id .tk{font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+.sum-id .line{display:flex;align-items:center;gap:8px;margin-top:4px;font-family:var(--mono);font-size:12.5px}
+.sum-id .chg.up{color:var(--up)} .sum-id .chg.down{color:var(--down)}
+.sum-id .stamp{font-size:10.5px;font-family:var(--sans);padding:2px 8px;border-radius:4px;border:1px solid var(--line);color:var(--dim)}
+.sum-memo{font-size:12.5px;color:var(--dim);line-height:1.65;white-space:pre-wrap;word-break:break-word}
+.sum-memo .no-memo{color:var(--faint);font-style:normal}
+.sum-daily{margin-top:32px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--hold);border-radius:10px;padding:16px 18px}
+.sum-daily .v{font-size:13px;font-weight:600;margin-bottom:6px}
+.sum-daily .v.pos{color:var(--keep)} .sum-daily .v.watch{color:var(--hold)} .sum-daily .v.weak{color:var(--up)} .sum-daily .v.neg{color:var(--up)}
+.sum-daily p{font-size:13px;color:var(--dim);white-space:pre-wrap;line-height:1.7}
+.sum-empty{margin-top:48px;text-align:center;color:var(--faint);font-size:13px;line-height:1.8}
+.sum-filter{max-width:1080px;margin:14px auto 0;padding:0 24px;display:flex;gap:8px;align-items:center;font-size:12px;color:var(--dim)}
+.sum-filter label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.sum-filter input{accent-color:var(--hold)}
+
+/* 라이트박스 */
+.lightbox{position:fixed;inset:0;background:rgba(8,10,14,.9);display:none;align-items:center;justify-content:center;z-index:200;padding:24px;cursor:zoom-out}
+.lightbox.show{display:flex}
+.lightbox img{max-width:min(96vw,1200px);max-height:88vh;border-radius:8px;border:1px solid var(--line)}
+.lightbox .lb-cap{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);font-size:12px;font-family:var(--mono);color:var(--dim);background:var(--panel);border:1px solid var(--line);padding:5px 14px;border-radius:999px}
+
+/* 입력 모드 카드 상단 미니 썸네일 */
+.card-top .mini{width:44px;height:28px;border-radius:4px;border:1px solid var(--line);object-fit:cover;object-position:top}
+
+/* ── 일일 요약 스트립 ──────────────── */
+.pulse{max-width:1080px;margin:16px auto 0;padding:0 24px;display:flex;gap:8px;flex-wrap:wrap}
+.pulse .chip{font-family:var(--mono);font-size:12px;padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--dim)}
+.chip b{font-weight:600}
+.chip.keep b{color:var(--keep)} .chip.hold b{color:var(--hold)} .chip.break b{color:var(--up)} .chip.flat b{color:var(--dim)}
+
+main{max-width:1080px;margin:0 auto;padding:8px 24px 80px}
+
+/* ── 그룹 ─────────────────────────── */
+.group{margin-top:36px}
+.group-head{display:flex;align-items:baseline;gap:10px;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:14px}
+.group-head .seq{font-family:var(--mono);font-size:11px;color:var(--faint)}
+.group-head h2{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.group-head .gnote{font-size:12px;color:var(--dim);margin-left:auto;text-align:right}
+
+/* ── 종목 카드 ────────────────────── */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:12px;overflow:hidden;transition:border-color .15s}
+.card.filled{border-left:3px solid var(--keep)}
+.card.filled.j-hold{border-left-color:var(--hold)}
+.card.filled.j-break{border-left-color:var(--up)}
+.card.filled.j-flat{border-left-color:var(--faint)}
+.card-top{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;user-select:none}
+.card-top .name{font-weight:600;font-size:14px}
+.card-top .ticker{font-family:var(--mono);font-size:11px;color:var(--dim);background:var(--panel-2);padding:2px 7px;border-radius:4px}
+.card-top .quick{margin-left:auto;display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:13px}
+.quick .chg.up{color:var(--up)} .quick .chg.down{color:var(--down)}
+.quick .stamp{font-size:11px;font-family:var(--sans);padding:3px 9px;border-radius:4px;border:1px solid var(--line);color:var(--dim)}
+.stamp.s-keep{border-color:var(--keep);color:var(--keep)}
+.stamp.s-hold{border-color:var(--hold);color:var(--hold)}
+.stamp.s-break{border-color:var(--up);color:var(--up)}
+.quick .caret{color:var(--faint);font-size:11px;transition:transform .15s}
+.card.open .caret{transform:rotate(180deg)}
+.card-body{display:none;padding:0 16px 16px;border-top:1px dashed var(--line)}
+.card.open .card-body{display:block}
+
+.report-note{margin:12px 0;padding:10px 12px;background:rgba(245,177,76,.06);border-left:2px solid var(--hold);border-radius:0 6px 6px 0;font-size:12.5px;color:#d8c9a8;line-height:1.65}
+.report-note b{color:var(--hold);font-weight:600;font-size:11px;display:block;margin-bottom:2px;letter-spacing:.05em}
+
+.fields{display:grid;grid-template-columns:130px 170px 1fr;gap:10px;margin-top:12px}
+@media(max-width:720px){.fields{grid-template-columns:1fr 1fr}.fields .memo-wrap{grid-column:1/-1}}
+.f label{display:block;font-size:11px;color:var(--dim);margin-bottom:4px;letter-spacing:.03em}
+.f input,.f select,.f textarea{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px}
+.f input.chg-in{font-family:var(--mono);text-align:right}
+.f input.chg-in.up{color:var(--up)} .f input.chg-in.down{color:var(--down)}
+.f textarea{resize:vertical;min-height:64px;line-height:1.6}
+.f select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238b94a3' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+
+/* 스크린샷 */
+.shot{margin-top:12px}
+.shot-zone{border:1px dashed var(--line);border-radius:8px;min-height:96px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;color:var(--faint);font-size:12px;padding:14px;text-align:center;transition:border-color .15s,background .15s}
+.shot-zone:hover,.shot-zone:focus,.shot-zone.drag{border-color:var(--hold);background:rgba(245,177,76,.04);color:var(--dim)}
+.shot-zone img{max-width:100%;border-radius:6px;display:block}
+.shot-tools{display:flex;gap:6px;margin-top:6px}
+.shot-tools button,.shot-tools label{font-size:11px;background:var(--panel-2);border:1px solid var(--line);color:var(--dim);padding:4px 10px;border-radius:5px;cursor:pointer}
+.shot-tools button:hover,.shot-tools label:hover{color:var(--text)}
+.shot-tools input{display:none}
+
+/* 종목 편집 */
+.card-edit{display:flex;gap:6px;margin-top:12px;justify-content:flex-end}
+.card-edit button{font-size:11px;background:none;border:1px solid var(--line);color:var(--faint);padding:3px 9px;border-radius:5px}
+.card-edit button:hover{color:var(--text)}
+.card-edit .del:hover{color:var(--up);border-color:var(--up)}
+
+.add-row{margin-top:6px}
+.add-row button{width:100%;background:none;border:1px dashed var(--line);color:var(--faint);padding:9px;border-radius:8px;font-size:12px}
+.add-row button:hover{color:var(--text);border-color:var(--dim)}
+
+/* ── 종합 판단 ────────────────────── */
+.daily{margin-top:48px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px}
+.daily h2{font-size:15px;margin-bottom:4px}
+.daily .sub{font-size:12px;color:var(--dim);margin-bottom:14px}
+.daily-grid{display:grid;grid-template-columns:200px 1fr;gap:12px}
+@media(max-width:720px){.daily-grid{grid-template-columns:1fr}}
+.verdict-opts{display:flex;flex-direction:column;gap:6px}
+.verdict-opts label{display:flex;align-items:center;gap:8px;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;cursor:pointer;color:var(--dim)}
+.verdict-opts input{accent-color:var(--hold)}
+.verdict-opts label:has(input:checked){color:var(--text);border-color:var(--dim);background:var(--panel-2)}
+.daily textarea{width:100%;min-height:140px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:12px;font-size:13px;line-height:1.7;resize:vertical}
+
+.save-hint{position:fixed;bottom:16px;right:16px;font-size:11px;font-family:var(--mono);color:var(--faint);background:var(--panel);border:1px solid var(--line);padding:5px 12px;border-radius:999px;opacity:0;transition:opacity .3s;pointer-events:none}
+.save-hint.show{opacity:1}
+
+footer{max-width:1080px;margin:40px auto 0;padding:16px 24px;border-top:1px solid var(--line);font-size:11px;color:var(--faint);line-height:1.7}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="head-row">
+    <h1>추세 관찰 일지<small>주간 시황(7/5) 언급 순서 기준 · 시장 판단 근거 기록</small></h1>
+    <div class="date-nav">
+      <button id="prevDay" title="이전 날">‹</button>
+      <input type="date" id="datePick">
+      <button id="nextDay" title="다음 날">›</button>
+    </div>
+    <div class="io-btns">
+      <button id="modeBtn" title="입력한 기록을 스크린샷과 함께 한눈에 보기">요약 보기</button>
+      <button id="exportBtn" title="현재까지의 모든 기록을 JSON 파일로 저장">JSON 내보내기</button>
+      <label title="내보냈던 JSON 파일 불러오기">JSON 가져오기<input type="file" id="importFile" accept=".json"></label>
+    </div>
+  </div>
+</header>
+
+<div class="pulse" id="pulse"></div>
+
+<div class="sum-filter" id="sumFilter" style="display:none">
+  <label><input type="checkbox" id="onlyRecorded" checked>기록한 종목만 보기</label>
+</div>
+
+<main id="main"></main>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-label="스크린샷 크게 보기">
+  <img id="lbImg" alt="">
+  <span class="lb-cap" id="lbCap"></span>
+</div>
+
+<div class="save-hint" id="saveHint">저장됨</div>
+
+<footer>
+  기록은 이 브라우저의 localStorage에 자동 저장됩니다. 다른 기기에서 보거나 백업하려면 <b>JSON 내보내기</b>로 파일을 받아 저장소(GitHub)에 함께 커밋해 두고, 필요할 때 <b>JSON 가져오기</b>로 복원하세요. 스크린샷은 자동으로 압축(최대 1100px, JPEG)되어 저장됩니다.
+</footer>
+
+<script>
+/* ═══════════ 기본 관찰 목록 — 주간 시황(2026.7.5) 언급 순서 ═══════════ */
+const DEFAULT_WATCHLIST = [
+ // 1. 미국 — 반도체
+ {id:'sox',   g:'us-semi', name:'필라델피아 반도체지수', ticker:'SOX',  note:'목요일 상승 채널 이탈성 변곡점. 작년 4월부터의 전체 랠리 변곡점은 아니고, 올 4월 이후 강세 구간에 대한 변곡점인지 판단.'},
+ {id:'nvda',  g:'us-semi', name:'엔비디아', ticker:'NVDA', note:'4월 이후 별도 랠리가 없었기에 지수 변곡점의 원인 아님. 세부 종목별 판단이 중요.'},
+ {id:'avgo',  g:'us-semi', name:'브로드컴', ticker:'AVGO', note:'NVDA와 동일 — 4월 이후 랠리 부재. 추세 유지 여부만 확인.'},
+ {id:'arm',   g:'us-semi', name:'Arm', ticker:'ARM',  note:'CPU 계열 중 가장 부진. 단기 상승 종료 후 안정 조정 상태 — 목요일까지 안정 조정 이탈은 없음. 이탈 여부 관찰.'},
+ {id:'intc',  g:'us-semi', name:'인텔', ticker:'INTC', note:'재상승 전환 시도 실패 형태이나 완전한 추세 이탈은 확인 전.'},
+ {id:'amd',   g:'us-semi', name:'AMD', ticker:'AMD',  note:'INTC와 동일 — 재상승 시도 실패 형태, 추세 이탈은 미확인.'},
+ {id:'equip', g:'us-semi', name:'반도체 장비 (AMAT·LRCX·KLAC 등)', ticker:'장비군', note:'4월 이후 랠리 최강 영역. 랠리가 멈추는 정도의 변곡점 발생 — 2일 급락이 전체 랠리를 종료시키는지 관찰.'},
+ {id:'mu',    g:'us-semi', name:'마이크론', ticker:'MU',   note:'★핵심 체크. 4월 이후 랠리 이탈성 약세 — 전체 추세 변화 가능성 고려 필요. 월요일 밤 유의미한 추세 복원 여부가 관건.'},
+ {id:'sndk',  g:'us-semi', name:'샌디스크', ticker:'SNDK', note:'★핵심 체크. 전체 랠리 채널 하단까지 하락. 확실한 이탈은 아니나 확대 해석 가능 — 복원 수준 관찰.'},
+ {id:'mrvl',  g:'us-semi', name:'마벨', ticker:'MRVL', note:'★핵심 체크. ASIC 중 유일한 랠리였으나 추세 길이가 짧아 이탈이 더 치명적. 유의미한 추세 변화 발생 — 복원 여부 확인.'},
+ // 2. 미국 — 광통신·네트워크
+ {id:'cohr',  g:'us-net', name:'코히런트', ticker:'COHR', note:'★핵심 체크. 광통신 계열 — 전체 추세에 대한 변화 발생. 복원 여부가 월요일 밤 체크포인트.'},
+ {id:'lite',  g:'us-net', name:'루멘텀', ticker:'LITE', note:'★핵심 체크. COHR와 함께 광통신 전체 추세 변화. 복원 여부 확인.'},
+ {id:'dell',  g:'us-net', name:'델', ticker:'DELL', note:'목요일 -7% 변동성 증가였으나 아직 flat 범위. 전체 추세 이탈로 보기엔 약한 단기 부진.'},
+ {id:'csco',  g:'us-net', name:'시스코', ticker:'CSCO', note:'DELL과 동일 — 단기 부진은 분명하나 전체 추세 유지.'},
+ // 3. 미국 — AI 인프라 확산주
+ {id:'gev',   g:'us-infra', name:'GE 버노바', ticker:'GEV', note:'주도주 확산(정통 AI 인프라)의 대표. 단기 변동성 증가·상승 둔화는 있으나 전체 추세 이탈 없음 — 확산 경향 유지 여부 관찰.'},
+ {id:'be',    g:'us-infra', name:'블룸에너지', ticker:'BE',  note:'GEV와 함께 확산 경향 확인용. 추세 이탈 여부 관찰.'},
+ // 4. 미국 — 빅테크·S/W
+ {id:'aapl',  g:'us-big', name:'애플', ticker:'AAPL', note:'빅테크 중 AI 투자와 무관한 장기 상승 추세 보유. 상대 강세 유지 여부.'},
+ {id:'googl', g:'us-big', name:'알파벳', ticker:'GOOGL',note:'인프라+AI 모델 모두 보유한 장기 상승 추세. 상대 강세 유지 여부.'},
+ {id:'msft',  g:'us-big', name:'마이크로소프트', ticker:'MSFT', note:'단/중기 하락 추세였으나 지난주 단기 하락 추세 종료 출현 — 지속 여부 확인.'},
+ {id:'meta',  g:'us-big', name:'메타', ticker:'META', note:'클라우드 판매 소식이 AI 투자 둔화 우려를 자극했으나 치명적 요소는 아님. 단기 하락 추세 종료 지속 여부.'},
+ {id:'amzn',  g:'us-big', name:'아마존', ticker:'AMZN', note:'비추세 상태. 빅테크 상대 강세 흐름 속 변화 여부.'},
+ {id:'sw',    g:'us-big', name:'S/W 이탈군 (DDOG·CRWD·SNOW)', ticker:'S/W', note:'S/W 전반 상대 강세였으나 중장기 하락 추세 반전은 미확인. 같은 S/W라도 전혀 다른 추세 — 반전 확인 여부.'},
+ // 5. 미국 — 시장 지표
+ {id:'vxn',   g:'us-idx', name:'나스닥 변동성지수', ticker:'VXN', note:'주도주 급락에도 기존 박스권에서 레벨업 없음 = 시장 전체 위험 미확대. 박스권 상단 돌파 여부가 위험 신호.'},
+ {id:'rut',   g:'us-idx', name:'러셀 2000', ticker:'RUT', note:'수·목 연속 약세였으나 추세 충격 없음. 추세 훼손 여부 관찰.'},
+ // 6. 한국 — 반도체
+ {id:'005930',g:'kr-semi', name:'삼성전자', ticker:'005930', note:'★최우선 체크. 목요일 4월 이후 랠리에 대한 sell sign — 전체 추세 변화 우려까지. 금요일 80%+ 회복했으나 offset은 아님(둔화 수준). Anthropic 파운드리 협약에도 SK하이닉스 대비 압도적 반등 부재 → 아직 투자 근거로 삼지 말 것. 월요일 추세 복원 여부가 시장 전체 판단의 관건.'},
+ {id:'000660',g:'kr-semi', name:'SK하이닉스', ticker:'000660', note:'★최우선 체크. 전체 추세 변곡점은 아직 아님 — 삼성전자보다 나은 추세. 월요일 추가 강한 회복이 나와야 상승 추세 복원으로 판단.'},
+ // 7. 한국 — 기타 주도주
+ {id:'009150',g:'kr-lead', name:'삼성전기', ticker:'009150', note:'끝까지 랠리가 유지되는 유일한 종목. 상승 탄력 둔화는 있으나 추세 훼손 없는 횡보 — 유지 여부 관찰.'},
+ {id:'power', g:'kr-lead', name:'전력기기 (HD현대일렉트릭 등)', ticker:'전력기기', note:'단기 수익은 아니나 중장기 상승 추세 기조 유지. 목·금 유지되던 추세의 변곡점 발생 여부 확인.'},
+ {id:'034020',g:'kr-lead', name:'두산에너빌리티', ticker:'034020', note:'중장기 추세 이탈이 회복되지 못하고 지속 중.'},
+ // 8. 한국 — 정책 관련주
+ {id:'banks', g:'kr-policy', name:'은행주', ticker:'은행', note:'중장기 추세 이탈 상황에 변화 없음.'},
+ {id:'016360',g:'kr-policy', name:'증권주 / 삼성증권', ticker:'016360', note:'중장기 이탈이 진행 중이었으나 금요일 갭 강한 상승으로 극복 중 — 궁극적 추세 복귀 사례. 전략: 삼성증권 기준학기 0→2%, 여름학기 0→1% 편입.'},
+ // 9. 한국 — 지수
+ {id:'kosdaq',g:'kr-idx', name:'코스닥 지수', ticker:'KOSDAQ', note:'소외 부진 종목군에서 의미 있는 긍정적 변화는 아직 없음.'},
+ {id:'kospi', g:'kr-idx', name:'코스피 지수', ticker:'KOSPI', note:'금요일 강한 반등으로 목요일 이탈을 offset하는 듯하나, 상승 "추세"의 복원으로 단정할 변화는 아님 — 복원 추가 확인 필요.'},
+];
+
+const GROUPS = [
+ {id:'us-semi',  seq:'01', name:'미국 · 반도체',        note:'목요일 변곡점의 성격 판별 — 4월 강세분에 대한 이탈인지'},
+ {id:'us-net',   seq:'02', name:'미국 · 광통신·네트워크', note:'광통신은 추세 변화 발생, 네트워크는 추세 유지'},
+ {id:'us-infra', seq:'03', name:'미국 · AI 인프라 확산주', note:'주도주 확산 경향의 생존 여부'},
+ {id:'us-big',   seq:'04', name:'미국 · 빅테크 & S/W',   note:'빅테크 상대 강세 = AI 투자 경향 자체는 유지'},
+ {id:'us-idx',   seq:'05', name:'미국 · 시장 지표',      note:'시장 전체 위험의 확대 여부'},
+ {id:'kr-semi',  seq:'06', name:'한국 · 반도체',        note:'월요일 최우선 체크 — 추세 복원 여부'},
+ {id:'kr-lead',  seq:'07', name:'한국 · 기타 주도주',    note:'상승 유지가 삼성전기 하나만 남은 상황인지'},
+ {id:'kr-policy',seq:'08', name:'한국 · 정책 관련주',    note:'중장기 추세 복귀 종목의 확산 여부'},
+ {id:'kr-idx',   seq:'09', name:'한국 · 지수',          note:'단순 상승과 상승 추세는 해석이 다름'},
+];
+
+const JUDGES = [
+ {v:'',      label:'— 판단 선택'},
+ {v:'keep',  label:'추세 유지'},
+ {v:'recov', label:'추세 복원'},
+ {v:'hold',  label:'변곡점 발생'},
+ {v:'flat',  label:'횡보 / 정체'},
+ {v:'break', label:'추세 이탈'},
+];
+const JUDGE_LABEL = Object.fromEntries(JUDGES.map(j=>[j.v,j.label]));
+const JUDGE_CLASS = {keep:'s-keep',recov:'s-keep',hold:'s-hold',flat:'',break:'s-break'};
+const CARD_CLASS  = {keep:'',recov:'',hold:'j-hold',flat:'j-flat',break:'j-break'};
+
+/* ═══════════ 상태 & 저장 ═══════════ */
+const LS_KEY='sihwang-journal-v1';
+let state = load();
+function load(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(raw){ const s = JSON.parse(raw); if(s.watchlist && s.entries) return s; }
+  }catch(e){}
+  return {watchlist: JSON.parse(JSON.stringify(DEFAULT_WATCHLIST)), entries:{}};
+}
+let saveTimer=null;
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{
+    try{
+      localStorage.setItem(LS_KEY, JSON.stringify(state));
+      flashSaved();
+    }catch(e){
+      alert('저장 공간이 가득 찼습니다. 스크린샷이 많으면 localStorage 한도(약 5MB)를 넘을 수 있어요.\nJSON 내보내기로 백업한 뒤, 오래된 날짜의 스크린샷을 지워 주세요.');
+    }
+  },400);
+}
+function flashSaved(){
+  const h=document.getElementById('saveHint');
+  h.classList.add('show');
+  setTimeout(()=>h.classList.remove('show'),1200);
+}
+
+/* ═══════════ 날짜 ═══════════ */
+function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
+let curDate = todayStr();
+function entry(){
+  if(!state.entries[curDate]) state.entries[curDate] = {items:{}, daily:{verdict:'', memo:''}};
+  return state.entries[curDate];
+}
+function item(id){
+  const e=entry();
+  if(!e.items[id]) e.items[id]={chg:'',judge:'',memo:'',img:''};
+  return e.items[id];
+}
+
+/* ═══════════ 렌더 ═══════════ */
+const main=document.getElementById('main');
+let viewMode = 'input'; // 'input' | 'summary'
+
+function render(){
+  document.getElementById('datePick').value = curDate;
+  const mb=document.getElementById('modeBtn');
+  mb.textContent = viewMode==='summary' ? '입력으로 돌아가기' : '요약 보기';
+  mb.classList.toggle('mode-on', viewMode==='summary');
+  document.getElementById('sumFilter').style.display = viewMode==='summary' ? 'flex' : 'none';
+  if(viewMode==='summary'){ renderSummary(); return; }
+  main.innerHTML='';
+  const e = state.entries[curDate] || {items:{},daily:{verdict:'',memo:''}};
+
+  GROUPS.forEach(gr=>{
+    const stocks = state.watchlist.filter(s=>s.g===gr.id);
+    if(!stocks.length) return;
+    const sec=document.createElement('section');
+    sec.className='group';
+    sec.innerHTML=`<div class="group-head"><span class="seq">${gr.seq}</span><h2>${esc(gr.name)}</h2><span class="gnote">${esc(gr.note)}</span></div>`;
+    stocks.forEach(s=> sec.appendChild(card(s, e.items[s.id]||{})));
+    const add=document.createElement('div');
+    add.className='add-row';
+    add.innerHTML=`<button data-g="${gr.id}">+ 이 그룹에 종목 추가</button>`;
+    add.querySelector('button').onclick=()=>addStock(gr.id);
+    sec.appendChild(add);
+    main.appendChild(sec);
+  });
+
+  main.appendChild(dailyPanel(e.daily));
+  renderPulse();
+}
+
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+function card(s, d){
+  const el=document.createElement('article');
+  const has = d.chg!=='' && d.chg!=null || d.judge || d.memo || d.img;
+  el.className='card'+(has?' filled '+(CARD_CLASS[d.judge]||''):'');
+  el.dataset.id=s.id;
+
+  const chgNum=parseFloat(d.chg);
+  const chgCls=isNaN(chgNum)?'':(chgNum>0?'up':chgNum<0?'down':'');
+  const chgTxt=isNaN(chgNum)?'':(chgNum>0?'+':'')+chgNum+'%';
+
+  el.innerHTML=`
+   <div class="card-top" role="button" tabindex="0" aria-expanded="false">
+     ${d.img?`<img class="mini" src="${d.img}" alt="">`:''}
+     <span class="name">${esc(s.name)}</span>
+     <span class="ticker">${esc(s.ticker)}</span>
+     <span class="quick">
+       <span class="chg ${chgCls}">${chgTxt}</span>
+       ${d.judge?`<span class="stamp ${JUDGE_CLASS[d.judge]||''}">${JUDGE_LABEL[d.judge]}</span>`:''}
+       <span class="caret">▾</span>
+     </span>
+   </div>
+   <div class="card-body">
+     <div class="report-note"><b>시황 체크포인트</b>${esc(s.note)}</div>
+     <div class="fields">
+       <div class="f"><label>등락률 (%)</label>
+         <input type="number" step="0.01" class="chg-in ${chgCls}" placeholder="예: -2.35" value="${d.chg??''}"></div>
+       <div class="f"><label>추세 판단</label>
+         <select class="judge-in">${JUDGES.map(j=>`<option value="${j.v}" ${d.judge===j.v?'selected':''}>${j.label}</option>`).join('')}</select></div>
+       <div class="f memo-wrap"><label>판단 근거 메모</label>
+         <textarea class="memo-in" placeholder="차트에서 확인한 근거를 적어 두세요">${esc(d.memo)}</textarea></div>
+     </div>
+     <div class="shot">
+       <div class="shot-zone" tabindex="0" title="클릭 후 Ctrl+V로 붙여넣기, 또는 이미지를 끌어다 놓기">
+         ${d.img?`<img src="${d.img}" alt="${esc(s.name)} 차트 스크린샷">`:`<span>차트 스크린샷 — 여기를 클릭한 뒤 <b>Ctrl+V</b> 붙여넣기<br>또는 이미지 파일을 끌어다 놓기</span>`}
+       </div>
+       <div class="shot-tools">
+         <label>파일 선택<input type="file" accept="image/*" class="shot-file"></label>
+         ${d.img?'<button class="shot-del">스크린샷 삭제</button>':''}
+       </div>
+     </div>
+     <div class="card-edit">
+       <button class="mv-up" title="위로">↑</button>
+       <button class="mv-dn" title="아래로">↓</button>
+       <button class="del">종목 삭제</button>
+     </div>
+   </div>`;
+
+  // 접기/펼치기
+  const top=el.querySelector('.card-top');
+  const toggle=()=>{el.classList.toggle('open');top.setAttribute('aria-expanded',el.classList.contains('open'));};
+  top.onclick=toggle;
+  top.onkeydown=ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();toggle();}};
+
+  // 입력
+  el.querySelector('.chg-in').oninput=ev=>{item(s.id).chg=ev.target.value; save(); refreshQuick(el,s.id);};
+  el.querySelector('.judge-in').onchange=ev=>{item(s.id).judge=ev.target.value; save(); refreshQuick(el,s.id); renderPulse();};
+  el.querySelector('.memo-in').oninput=ev=>{item(s.id).memo=ev.target.value; save();};
+
+  // 스크린샷
+  const zone=el.querySelector('.shot-zone');
+  zone.addEventListener('paste',ev=>{
+    const f=[...(ev.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));
+    if(f){ev.preventDefault(); setImage(s.id,f.getAsFile(),el);}
+  });
+  zone.addEventListener('dragover',ev=>{ev.preventDefault();zone.classList.add('drag');});
+  zone.addEventListener('dragleave',()=>zone.classList.remove('drag'));
+  zone.addEventListener('drop',ev=>{
+    ev.preventDefault();zone.classList.remove('drag');
+    const f=[...ev.dataTransfer.files].find(f=>f.type.startsWith('image/'));
+    if(f) setImage(s.id,f,el);
+  });
+  zone.addEventListener('click',()=>zone.focus());
+  el.querySelector('.shot-file').onchange=ev=>{ if(ev.target.files[0]) setImage(s.id,ev.target.files[0],el); };
+  const delBtn=el.querySelector('.shot-del');
+  if(delBtn) delBtn.onclick=()=>{item(s.id).img=''; save(); rerenderCard(el,s);};
+
+  // 편집
+  el.querySelector('.del').onclick=()=>{
+    if(confirm(`"${s.name}" 종목을 목록에서 삭제할까요? (모든 날짜의 관찰 목록에서 빠집니다)`)){
+      state.watchlist=state.watchlist.filter(x=>x.id!==s.id); save(); render();
+    }
+  };
+  el.querySelector('.mv-up').onclick=()=>moveStock(s.id,-1);
+  el.querySelector('.mv-dn').onclick=()=>moveStock(s.id,1);
+
+  return el;
+}
+
+function refreshQuick(el,id){
+  const d=item(id);
+  const n=parseFloat(d.chg);
+  const cls=isNaN(n)?'':(n>0?'up':n<0?'down':'');
+  const chgEl=el.querySelector('.quick .chg');
+  chgEl.className='chg '+cls;
+  chgEl.textContent=isNaN(n)?'':(n>0?'+':'')+n+'%';
+  const inp=el.querySelector('.chg-in'); inp.className='chg-in '+cls;
+  // 스탬프
+  let st=el.querySelector('.quick .stamp');
+  if(d.judge){
+    if(!st){st=document.createElement('span');el.querySelector('.quick').insertBefore(st,el.querySelector('.caret'));}
+    st.className='stamp '+(JUDGE_CLASS[d.judge]||''); st.textContent=JUDGE_LABEL[d.judge];
+  }else if(st) st.remove();
+  const has=d.chg!==''||d.judge||d.memo||d.img;
+  el.className='card open'+(has?' filled '+(CARD_CLASS[d.judge]||''):'');
+}
+
+function rerenderCard(oldEl,s){
+  const wasOpen=oldEl.classList.contains('open');
+  const nu=card(s,item(s.id));
+  if(wasOpen) nu.classList.add('open');
+  oldEl.replaceWith(nu);
+  renderPulse();
+}
+
+/* 이미지 압축 저장 */
+function setImage(id,file,el){
+  const img=new Image();
+  img.onload=()=>{
+    const MAX=1100;
+    const scale=Math.min(1,MAX/img.width);
+    const cv=document.createElement('canvas');
+    cv.width=Math.round(img.width*scale); cv.height=Math.round(img.height*scale);
+    cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+    item(id).img=cv.toDataURL('image/jpeg',0.72);
+    URL.revokeObjectURL(img.src);
+    save();
+    const s=state.watchlist.find(x=>x.id===id);
+    rerenderCard(el,s);
+  };
+  img.src=URL.createObjectURL(file);
+}
+
+/* 종목 추가/이동 */
+function addStock(gid){
+  const name=prompt('종목명 (예: 한화에어로스페이스)'); if(!name) return;
+  const ticker=prompt('티커/코드 (예: 012450)','')||'-';
+  const note=prompt('체크포인트 메모 (선택)','')||'';
+  state.watchlist.push({id:'u'+Date.now(), g:gid, name, ticker, note});
+  save(); render();
+}
+function moveStock(id,dir){
+  const list=state.watchlist;
+  const i=list.findIndex(s=>s.id===id); if(i<0) return;
+  const s=list[i];
+  // 같은 그룹 내에서만 이동
+  let j=i+dir;
+  while(j>=0 && j<list.length && list[j].g!==s.g) j+=dir;
+  if(j<0||j>=list.length) return;
+  [list[i],list[j]]=[list[j],list[i]];
+  save(); render();
+}
+
+/* ═══════════ 일일 요약 스트립 ═══════════ */
+function renderPulse(){
+  const e=state.entries[curDate]||{items:{}};
+  const c={keep:0,recov:0,hold:0,flat:0,break:0};
+  Object.values(e.items||{}).forEach(d=>{ if(d.judge && c[d.judge]!=null) c[d.judge]++; });
+  const total=state.watchlist.length;
+  const done=Object.values(e.items||{}).filter(d=>d.judge||d.chg!==''&&d.chg!=null&&d.chg!==undefined&&d.chg!=='').length;
+  document.getElementById('pulse').innerHTML=
+   `<span class="chip">기록 <b>${done}</b>/${total}</span>`+
+   `<span class="chip keep">유지·복원 <b>${c.keep+c.recov}</b></span>`+
+   `<span class="chip hold">변곡점 <b>${c.hold}</b></span>`+
+   `<span class="chip flat">횡보 <b>${c.flat}</b></span>`+
+   `<span class="chip break">이탈 <b>${c.break}</b></span>`;
+}
+
+/* ═══════════ 요약 모드 ═══════════ */
+const VERDICT_TXT={pos:'긍정 유지 — 추세 복원 확인',watch:'중립 관찰 — 복원 미확인, 변동성 국면',weak:'상대적 약세 가능성 — 포지션 축소 유지',neg:'부정 전환 — 추세 변화 시작'};
+
+function recorded(d){ return d && (String(d.chg??'')!=='' || d.judge || (d.memo&&d.memo.trim()) || d.img); }
+
+function renderSummary(){
+  main.innerHTML='';
+  const e=state.entries[curDate]||{items:{},daily:{verdict:'',memo:''}};
+  const onlyRec=document.getElementById('onlyRecorded').checked;
+  let shown=0;
+
+  GROUPS.forEach(gr=>{
+    const stocks=state.watchlist.filter(s=>s.g===gr.id);
+    const rows=stocks.filter(s=> onlyRec ? recorded(e.items[s.id]) : true);
+    if(!rows.length) return;
+    const sec=document.createElement('section');
+    sec.className='sum-group';
+    sec.innerHTML=`<div class="sum-head"><span class="seq">${gr.seq}</span><h2>${esc(gr.name)}</h2></div>`;
+    rows.forEach(s=>{
+      const d=e.items[s.id]||{};
+      const n=parseFloat(d.chg);
+      const chgCls=isNaN(n)?'':(n>0?'up':n<0?'down':'');
+      const chgTxt=isNaN(n)?'—':(n>0?'+':'')+n+'%';
+      const row=document.createElement('div');
+      row.className='sum-row'+(recorded(d)?'':' dimmed');
+      row.innerHTML=`
+        ${d.img
+          ?`<button class="sum-thumb" title="크게 보기"><img src="${d.img}" alt="${esc(s.name)} 차트"></button>`
+          :`<div class="sum-thumb empty">캡처 없음</div>`}
+        <div class="sum-id">
+          <div class="nm">${esc(s.name)}</div>
+          <div class="tk">${esc(s.ticker)}</div>
+          <div class="line">
+            <span class="chg ${chgCls}">${chgTxt}</span>
+            ${d.judge?`<span class="stamp ${JUDGE_CLASS[d.judge]||''}">${JUDGE_LABEL[d.judge]}</span>`:''}
+          </div>
+        </div>
+        <div class="sum-memo">${d.memo&&d.memo.trim()?esc(d.memo):'<span class="no-memo">메모 없음</span>'}</div>`;
+      const tb=row.querySelector('button.sum-thumb');
+      if(tb) tb.onclick=()=>openLightbox(d.img, `${s.name} · ${curDate}${chgTxt!=='—'?' · '+chgTxt:''}`);
+      // 행 더블클릭 → 해당 종목 입력 모드로
+      row.ondblclick=()=>{viewMode='input'; render(); openCardById(s.id);};
+      sec.appendChild(row);
+    });
+    main.appendChild(sec);
+    shown+=rows.length;
+  });
+
+  if(!shown){
+    const em=document.createElement('div');
+    em.className='sum-empty';
+    em.innerHTML='이 날짜에 기록된 종목이 없습니다.<br>「입력으로 돌아가기」를 눌러 기록을 시작하거나, 위 필터를 해제해 전체 목록을 확인하세요.';
+    main.appendChild(em);
+  }
+
+  // 종합 판단
+  if(e.daily && (e.daily.verdict || (e.daily.memo&&e.daily.memo.trim()))){
+    const dl=document.createElement('section');
+    dl.className='sum-daily';
+    dl.innerHTML=`
+      ${e.daily.verdict?`<div class="v ${e.daily.verdict}">종합 판단 · ${VERDICT_TXT[e.daily.verdict]||''}</div>`:''}
+      ${e.daily.memo&&e.daily.memo.trim()?`<p>${esc(e.daily.memo)}</p>`:''}`;
+    main.appendChild(dl);
+  }
+  renderPulse();
+}
+
+function openCardById(id){
+  const el=main.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+  if(el){ el.classList.add('open'); el.scrollIntoView({block:'center'}); }
+}
+
+/* 라이트박스 */
+const lb=document.getElementById('lightbox');
+function openLightbox(src,cap){
+  document.getElementById('lbImg').src=src;
+  document.getElementById('lbCap').textContent=cap;
+  lb.classList.add('show');
+}
+lb.onclick=()=>lb.classList.remove('show');
+document.addEventListener('keydown',ev=>{ if(ev.key==='Escape') lb.classList.remove('show'); });
+
+document.getElementById('modeBtn').onclick=()=>{ viewMode = viewMode==='summary' ? 'input' : 'summary'; render(); };
+document.getElementById('onlyRecorded').onchange=()=>{ if(viewMode==='summary') renderSummary(); };
+
+/* ═══════════ 종합 판단 패널 ═══════════ */
+function dailyPanel(d){
+  const wrap=document.createElement('section');
+  wrap.className='daily';
+  const opts=[
+   {v:'pos',  label:'긍정 유지 — 추세 복원 확인'},
+   {v:'watch',label:'중립 관찰 — 복원 미확인, 변동성 국면'},
+   {v:'weak', label:'상대적 약세 가능성 — 포지션 축소 유지'},
+   {v:'neg',  label:'부정 전환 — 추세 변화 시작'},
+  ];
+  wrap.innerHTML=`
+   <h2>오늘의 종합 시장 판단</h2>
+   <p class="sub">시황 기준: 삼성전자·SK하이닉스 추세 복원 + 미국 메모리(MU·SNDK)·MRVL·광통신(COHR·LITE) 복원이 확인되면 긍정 유지, 없으면 AI H/W 흐름 변화 국면으로 판단.</p>
+   <div class="daily-grid">
+     <div class="verdict-opts">
+       ${opts.map(o=>`<label><input type="radio" name="verdict" value="${o.v}" ${d.verdict===o.v?'checked':''}>${o.label}</label>`).join('')}
+     </div>
+     <textarea class="daily-memo" placeholder="오늘 기록을 근거로 한 시장 판단을 정리하세요.&#10;예) 삼전 +3.2% 갭 상승으로 sell sign offset, MU·SNDK 채널 복귀 → 변동성 국면 종료로 판단, 재진입 검토.">${esc(d.memo)}</textarea>
+   </div>`;
+  wrap.querySelectorAll('input[name=verdict]').forEach(r=>r.onchange=ev=>{entry().daily.verdict=ev.target.value; save();});
+  wrap.querySelector('.daily-memo').oninput=ev=>{entry().daily.memo=ev.target.value; save();};
+  return wrap;
+}
+
+/* ═══════════ 날짜 이동 ═══════════ */
+const dp=document.getElementById('datePick');
+dp.onchange=()=>{curDate=dp.value||todayStr(); render();};
+document.getElementById('prevDay').onclick=()=>shiftDay(-1);
+document.getElementById('nextDay').onclick=()=>shiftDay(1);
+function shiftDay(n){
+  const d=new Date(curDate+'T00:00:00'); d.setDate(d.getDate()+n);
+  curDate=d.toISOString().slice(0,10); render();
+}
+
+/* ═══════════ 내보내기 / 가져오기 ═══════════ */
+document.getElementById('exportBtn').onclick=()=>{
+  const blob=new Blob([JSON.stringify(state,null,1)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`sihwang-journal-${todayStr().replace(/-/g,'')}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
+};
+document.getElementById('importFile').onchange=ev=>{
+  const f=ev.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const s=JSON.parse(r.result);
+      if(!s.watchlist||!s.entries) throw 0;
+      if(confirm('가져온 파일로 현재 기록을 덮어씁니다. 계속할까요?')){
+        state=s; save(); render();
+      }
+    }catch(e){alert('올바른 일지 JSON 파일이 아닙니다.');}
+  };
+  r.readAsText(f);
+  ev.target.value='';
+};
+
+render();
+</script>
+</body>
+</html>
